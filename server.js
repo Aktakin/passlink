@@ -1,33 +1,62 @@
 const express = require("express");
 const jwt = require("jsonwebtoken");
 const bodyParser = require("body-parser");
+const nodemailer = require("nodemailer");
 
 const app = express();
 app.use(bodyParser.urlencoded({ extended: true }));
 
-const SECRET_KEY = "supersecret"; // Use env variable in real apps
+const SECRET_KEY = "supersecret"; // for demo only
 
-// Step 1: Render the login form
+let testAccount, transporter;
+
+async function setupMailer() {
+  // Create test account
+  testAccount = await nodemailer.createTestAccount();
+
+  // Create transporter with Ethereal SMTP
+  transporter = nodemailer.createTransport({
+    host: testAccount.smtp.host,
+    port: testAccount.smtp.port,
+    secure: testAccount.smtp.secure,
+    auth: {
+      user: testAccount.user,
+      pass: testAccount.pass,
+    },
+  });
+}
+
 app.get("/", (req, res) => {
   res.send(`
     <form action="/send-link" method="post">
-      <input type="email" name="email" placeholder="Enter email" required/>
+      <input type="email" name="email" placeholder="Enter email" required />
       <button type="submit">Send Magic Link</button>
     </form>
   `);
 });
 
-// Step 2: Generate magic link
-app.post("/send-link", (req, res) => {
+app.post("/send-link", async (req, res) => {
   const email = req.body.email;
-  const token = jwt.sign({ email }, SECRET_KEY, { expiresIn: "5m" }); // expires in 5 minutes
-  const link = `http://localhost:3000/authenticate?token=${token}`;
+  const token = jwt.sign({ email }, SECRET_KEY, { expiresIn: "5m" });
+  const magicLink = `http://localhost:3000/authenticate?token=${token}`;
 
-  console.log(`💌 Magic Link (simulated email): ${link}`);
-  res.send("Check your 'email' (terminal) for a magic login link.");
+  const mailOptions = {
+    from: '"Magic Link Login" <noreply@example.com>',
+    to: email,
+    subject: "Your Magic Login Link",
+    html: `<p>Click below to login:</p><a href="${magicLink}">${magicLink}</a>`,
+  };
+
+  try {
+    const info = await transporter.sendMail(mailOptions);
+    console.log("✅ Email sent! Preview at:", nodemailer.getTestMessageUrl(info));
+    res.send("✅ Check the console for the magic login link preview URL.");
+  } catch (err) {
+    console.error(err);
+    res.status(500).send("❌ Failed to send email.");
+  }
 });
 
-// Step 3: Authenticate with token
 app.get("/authenticate", (req, res) => {
   const token = req.query.token;
   try {
@@ -38,4 +67,6 @@ app.get("/authenticate", (req, res) => {
   }
 });
 
-app.listen(3000, () => console.log("🔒 Server running at http://localhost:3000"));
+setupMailer().then(() => {
+  app.listen(3000, () => console.log("📨 Server running at http://localhost:3000"));
+});
