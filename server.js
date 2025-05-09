@@ -84,7 +84,7 @@ app.get("/authenticate", (req, res) => {
 
   try {
     const payload = jwt.verify(token, SECRET_KEY);
-    res.send(`<h2>✅ Logged in successfully as ${payload.email}</h2>`);
+    res.sendFile(path.join(__dirname, "public", "success.html"));
   } catch (err) {
     res.status(401).send("❌ Invalid or expired login link");
   }
